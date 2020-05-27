@@ -17,7 +17,7 @@ public class MainActivity extends AppCompatActivity {
         webView=(WebView)findViewById(R.id.web);
         WebSettings wb= webView.getSettings();
         wb.setJavaScriptEnabled(true);
-        webView.loadUrl("https://www.kkw.edu.in");
+        webView.loadUrl("https://engg.kkwagh.edu.in/");
         webView.setWebViewClient(new WebViewClient());
 
     }

@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "665427195942",
+    "firebase_url": "https://edtracking-1125c.firebaseio.com",
+    "project_id": "edtracking-1125c",
+    "storage_bucket": "edtracking-1125c.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:665427195942:android:048234d13b802509510ee7",
+        "android_client_info": {
+          "package_name": "com.ajinkya.edt"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "665427195942-jgovfbd0puutblh67oia0k5b7cqfgiok.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ajinkya.edt",
+            "certificate_hash": "1808a29931e412a69869fe966cb6854c4923f406"
+          }
+        },
+        {
+          "client_id": "665427195942-a0hpn54ucnggu2d2ebl98cgfi9ah9ava.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQR0F7KdQGhRlboJOoCEhwrI3xTmGU0S8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "665427195942-a0hpn54ucnggu2d2ebl98cgfi9ah9ava.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

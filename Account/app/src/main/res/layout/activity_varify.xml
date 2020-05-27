@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/holo_blue_dark"
+    tools:context=".Varify">
+
+    <TextView
+        android:layout_marginTop="30dp"
+        android:layout_marginLeft="60dp"
+        android:textAlignment="center"
+        android:gravity="center"
+        android:textSize="30dp"
+        android:textStyle="italic"
+        android:textColor="@android:color/white"
+        android:text="Varification Needed Enter OTP here "
+        android:layout_width="260dp"
+        android:layout_height="180dp"/>
+
+    <EditText
+        android:id="@+id/v"
+        android:layout_marginTop="280dp"
+        android:layout_marginLeft="60dp"
+        android:textAlignment="center"
+        android:gravity="center"
+        android:textSize="30dp"
+        android:textStyle="italic"
+        android:textColor="@android:color/white"
+       android:hint="Enter Your OTP"
+        android:layout_width="260dp"
+        android:layout_height="80dp"/>
+
+    <Button
+        android:id="@+id/varify"
+        android:layout_marginTop="380dp"
+        android:layout_marginLeft="90dp"
+        android:textAlignment="center"
+        android:gravity="center"
+        android:textSize="30dp"
+        android:background="@drawable/circle"
+        android:textStyle="italic"
+        android:textColor="@android:color/white"
+        android:text="Proceed"
+        android:layout_width="160dp"
+        android:layout_height="60dp"/>
+
+</RelativeLayout>

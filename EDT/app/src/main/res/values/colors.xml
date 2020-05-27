@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#008577</color>
+    <color name="colorPrimaryDark">#00574B</color>
+    <color name="colorAccent">#D81B60</color>
+    <color name="green_primary">#4CAF50</color>
+    <color name="light_green_primary_dark">#689F38</color>
+    <color name="yellow_primary_dark">#FBC02D</color>
+    <color name="light_blue_primary_dark">#0288D1</color>
+    <color name="orange_primary">#FF9800</color>
+
+    <color name="dashb_blue">#00C0EF</color>
+    <color name="dashb_green">#00A65A</color>
+    <color name="dashb_orange">#FFB301</color>
+    <color name="dashb_yellow">#FFEB3B</color>
+</resources>
