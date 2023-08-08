@@ -1,6 +1,0 @@
-<resources>
-    <string name="app_name">Maji Gold</string>
-    <string name="login_prefernce">com.ajinkya.majigold_login_preference</string>
-    <string name="login_status">com.ajinkya.majigold_login_status</string>
-
-</resources>
