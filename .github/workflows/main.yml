@@ -1,0 +1,344 @@
+name: Main CI/CD Workflow
+
+on:
+  push:
+    branches: [ main, master,develop ]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [ main, master, develop ]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================== DETEKT ANALYSIS ====================
+  detekt:
+    name: Detekt - Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+
+      - name: Run Detekt
+        run: ./gradlew detekt
+
+      - name: Check Detekt Results
+        if: always()
+        run: |
+          if [ -f "app/build/reports/detekt/detekt.xml" ]; then
+            ERRORS=$(grep -c 'error' app/build/reports/detekt/detekt.xml || echo "0")
+            if [ "$ERRORS" -gt 0 ]; then
+              echo "❌ Found $ERRORS Detekt errors"
+              exit 1
+            fi
+          fi
+          echo "✅ Detekt passed"
+
+      - name: Upload Detekt Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: detekt-report
+          path: app/build/reports/detekt/
+
+  # ==================== KTLINT CHECK ====================
+  ktlint:
+    name: KtLint - Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+
+      - name: Run KtLint
+        run: ./gradlew ktlintCheck
+
+  # ==================== ANDROID LINT ====================
+  android-lint:
+    name: Android Lint - Resources
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+
+      - name: Run Lint
+        run: ./gradlew lintDebug
+
+      - name: Check Unused Resources
+        if: always()
+        run: |
+          if [ -f "app/build/reports/lint-results-debug.xml" ]; then
+            UNUSED=$(grep -E 'id="UnusedResources"|id="UnusedAttribute"' app/build/reports/lint-results-debug.xml | wc -l)
+            if [ "$UNUSED" -gt 0 ]; then
+              echo "❌ Found $UNUSED unused resources"
+              exit 1
+            fi
+          fi
+          echo "✅ No unused resources"
+
+      - name: Upload Lint Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.*
+
+  # ==================== BUILD & TEST ====================
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Clean Build
+        run: ./gradlew clean
+
+      - name: Assemble Debug
+        run: ./gradlew assembleDebug
+
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: app/build/reports/tests/
+
+  # ==================== APK SIZE CHECK ====================
+  apk-size:
+    name: APK Size
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+
+      - name: Build APK
+        run: ./gradlew assembleDebug
+
+      - name: Check APK Size
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          SIZE=$(stat -f%z "$APK" 2>/dev/null || stat -c%s "$APK")
+          echo "APK Size: $((SIZE/1024/1024))MB"
+          
+          if [ $SIZE -gt 104857600 ]; then
+            echo "❌ APK exceeds 100MB limit"
+            exit 1
+          fi
+          echo "✅ APK size OK"
+
+  # ==================== PR AUTOMATION ====================
+  pr-automation:
+    name: PR Automation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: PR Size Check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const additions = context.payload.pull_request.additions || 0;
+            const deletions = context.payload.pull_request.deletions || 0;
+            const total = additions + deletions;
+            
+            if (total > 500) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `⚠️ **PR Size Warning**\n\nThis PR has **${total}** changed lines (max: 500). Consider splitting it.`
+              });
+            }
+
+      - name: Welcome First-Time Contributors
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const author = context.payload.pull_request.user.login;
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              per_page: 100
+            });
+            
+            const userPRs = prs.filter(pr => pr.user.login === author);
+            
+            if (userPRs.length === 1) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `🎉 **Welcome @${author}!**\n\nThanks for your first contribution! All automated checks will run on this PR.`
+              });
+            }
+
+      - name: Auto Label PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const branch = pr.head.ref;
+            const labels = [];
+            
+            if (branch.startsWith('feat/')) labels.push('feature');
+            if (branch.startsWith('fix/')) labels.push('bugfix');
+            if (branch.startsWith('hotfix/')) labels.push('hotfix');
+            if (branch.startsWith('docs/')) labels.push('documentation');
+            
+            const total = (pr.additions || 0) + (pr.deletions || 0);
+            if (total < 50) labels.push('size: small');
+            else if (total < 300) labels.push('size: medium');
+            else labels.push('size: large');
+            
+            if (labels.length > 0) {
+              github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: labels
+              });
+            }
+
+  # ==================== QUALITY GATE ====================
+  quality-gate:
+    name: Quality Gate
+    needs: [detekt, ktlint, android-lint, build, apk-size]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Evaluate All Checks
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = {
+              detekt: '${{ needs.detekt.result }}',
+              ktlint: '${{ needs.ktlint.result }}',
+              lint: '${{ needs.android-lint.result }}',
+              build: '${{ needs.build.result }}',
+              apkSize: '${{ needs.apk-size.result }}'
+            };
+            
+            let failed = 0;
+            let report = '## Code Quality Results\n\n';
+            report += '| Check | Status |\n|-------|--------|\n';
+            
+            for (const [name, result] of Object.entries(jobs)) {
+              const icon = result === 'success' ? '✅' : result === 'failure' ? '❌' : '⚠️';
+              report += `| ${icon} ${name} | ${result} |\n`;
+              if (result === 'failure') failed++;
+            }
+            
+            report += '\n';
+            if (failed > 0) {
+              report += `❌ **${failed} check(s) failed**\nPR cannot be merged.`;
+            } else {
+              report += '✅ **All checks passed!**\nReady for merge.';
+            }
+            
+            // Post PR comment
+            if (context.eventName === 'pull_request') {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: report
+              });
+            }
+            
+            // Create check run
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Quality Gate',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: failed > 0 ? 'failure' : 'success',
+              output: {
+                title: failed > 0 ? 'Checks Failed' : 'All Checks Passed',
+                summary: report
+              }
+            });
+            
+            if (failed > 0) {
+              core.setFailed(`${failed} check(s) failed`);
+            }
