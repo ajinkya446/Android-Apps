@@ -1,6 +1,6 @@
 # GitHub Branch Protection Setup
 
-This document explains how to configure branch protection rules to enforce code quality checks and restrict direct pushes.
+This document explains how to configure branch protection rules to enforce code quality checks, show the **Update branch** button on PRs, and restrict direct pushes.
 
 > 📚 For complete project documentation, see [CONFLUENCE.md](./CONFLUENCE.md)
 
@@ -31,7 +31,11 @@ main
 - ☐ Require review from code owners (optional)
 
 ☑️ **Require status checks to pass before merging**
-- ☑️ Require branches to be up to date before merging
+
+> ⚠️ **CRITICAL: Enable this to show "Update branch" button**
+> 
+> ☑️ **Require branches to be up to date before merging** ← This enables the Update branch button!
+
 - **Required status checks (search and select all):**
   - `Quality Gate` ⚠️ Most important - final summary
   - `Detekt Analysis` - Kotlin static analysis
@@ -108,6 +112,68 @@ Protected Branches
 ☑️ **Require conversation resolution before merging**
 
 ☑️ **Block force pushes**
+
+---
+
+## The "Update branch" Button
+
+### What is it?
+
+The **Update branch** button appears on Pull Requests when:
+1. Your feature branch is behind the target branch (has missing commits)
+2. "**Require branches to be up to date before merging**" is enabled
+
+### How it works
+
+```
+Scenario: main branch has new commits after you created your PR
+
+Before Update:
+main:    A---B---C---D (new commits)
+              \
+feature:        X---Y---Z
+
+PR shows: ⚠️ "This branch is out-of-date with the base branch"
+           [Update branch] button visible
+
+After clicking Update branch:
+main:    A---B---C---D
+              \
+feature:        X---Y---Z---D' (merge commit)
+                         |
+                        [Update branch button disappears]
+```
+
+### Why it's important
+
+- ✅ Ensures your code works with latest changes
+- ✅ Prevents conflicts after merging
+- ✅ Required for CI/CD checks to run against latest code
+- ✅ Maintains linear history (if using rebase)
+
+### Enabling the Button
+
+**Method 1: Branch Protection Rules**
+```
+Settings → Branches → Branch protection rule
+├─ ☑️ Require a pull request before merging
+├─ ☑️ Require status checks to pass before merging
+│   └─ ☑️ Require branches to be up to date before merging ← ENABLE THIS
+```
+
+**Method 2: Rulesets (Recommended)**
+```
+Settings → Rules → Rulesets → Edit ruleset
+├─ ☑️ Require status checks before merging
+│   └─ ☑️ Require branches to be up to date before merging ← ENABLE THIS
+```
+
+### What happens if disabled?
+
+- ❌ No "Update branch" button shown
+- ❌ Outdated PRs can be merged
+- ❌ Potential merge conflicts after merge
+- ❌ CI might pass on outdated code
 
 ---
 
@@ -222,6 +288,41 @@ main/master (production)
 
 ---
 
+## Quick Reference: Update Branch Button
+
+| Setting | Location | Effect |
+|---------|----------|--------|
+| "Require branches to be up to date" | Branch Protection → Status Checks | Shows "Update branch" button when behind |
+| "Always suggest updating branch" | Repository Settings → General | Always shows button even if not required |
+
+### Visual Guide
+
+**PR with Update branch button:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Some checks haven't completed yet                           │
+│  1 expected, 1 in progress, and 1 successful checks          │
+├─────────────────────────────────────────────────────────────┤
+│  ⚠️ This branch is out-of-date with the base branch          │
+│                                                              │
+│  [ Update branch ]  ←── Click this button                    │
+│                                                              │
+│  [ Merge pull request ]  (disabled until updated)            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**After clicking Update branch:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ✓ This branch has no conflicts with the base branch         │
+│    when rebasing                                             │
+│                                                              │
+│  [ Merge pull request ]  ←── Now enabled!                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Troubleshooting
 
 ### Checks Not Running
@@ -246,6 +347,17 @@ main/master (production)
 - Check that `Quality Gate` job is marked as **Required**
 - Ensure no ignore annotations suppressing errors
 
+### "Update branch" Button Not Showing
+**Problem**: Can't see "Update branch" button on PR
+**Solution**:
+1. Go to branch protection settings
+2. Find "Require status checks to pass before merging"
+3. ☑️ Check "Require branches to be up to date before merging"
+4. Save changes
+5. Refresh PR page - button should now appear when behind
+
+**Alternative**: Repository Settings → General → ☑️ "Always suggest updating branches"
+
 ---
 
 ## Verification Checklist
@@ -257,6 +369,8 @@ After setup, verify everything works:
 - [ ] Create test PR to develop
 - [ ] All checks appear in PR
 - [ ] Checks run and complete
+- [ ] **"Update branch" button appears when branch is behind**
+- [ ] Clicking "Update branch" merges latest changes
 - [ ] Try direct push to main (should fail)
 - [ ] Try direct push to develop (should fail)
 - [ ] Merge test PR after checks pass
