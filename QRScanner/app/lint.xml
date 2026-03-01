@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- ========== UNUSED CODE DETECTION ========== -->
+    <!-- Treat unused resources as errors -->
+    <issue id="UnusedResources" severity="error" />
+
+    <!-- Unused imports -->
+    <issue id="UnusedImport" severity="error" />
+
+    <!-- Unused variables and parameters -->
+    <issue id="UnusedAttribute" severity="error" />
+
+    <!-- Unused IDs in layouts -->
+    <issue id="UnusedIds" severity="warning" />
+
+    <!-- ========== CODE QUALITY ========== -->
+    <!-- Kotlin code style -->
+    <issue id="KotlinPropertyAccess" severity="error" />
+    <issue id="LambdaLast" severity="error" />
+
+    <!-- Performance -->
+    <issue id="ObsoleteSdkInt" severity="error" />
+    <issue id="UnusedNamespace" severity="error" />
+
+    <!-- Security -->
+    <issue id="HardcodedText" severity="warning" />
+    <issue id="SetJavaScriptEnabled" severity="error" />
+
+    <!-- Correctness -->
+    <issue id="NewApi" severity="error" />
+    <issue id="InlinedApi" severity="error" />
+    <issue id="Override" severity="error" />
+
+    <!-- ========== IGNORED CHECKS ========== -->
+    <!-- Ignore missing translations for now -->
+    <issue id="MissingTranslation" severity="ignore" />
+
+    <!-- Ignore icon density warnings -->
+    <issue id="IconMissingDensityFolder" severity="ignore" />
+
+    <!-- Google Play-specific checks that don't apply to all projects -->
+    <issue id="MissingQuantity" severity="ignore" />
+    <issue id="MissingFirebaseAppIndexingNotification" severity="ignore" />
+
+    <!-- ========== TEST FILES ========== -->
+    <!-- Lower severity for test files -->
+    <issue id="HardcodedText">
+        <ignore path="**/test/**" />
+        <ignore path="**/androidTest/**" />
+    </issue>
+
+    <!-- ========== GENERATED CODE ========== -->
+    <!-- Don't check generated code -->
+    <ignore path="**/build/**" />
+    <ignore path="**/generated/**" />
+    <ignore path="**/R.java" />
+    <ignore path="**/R.kt" />
+
+</lint>
