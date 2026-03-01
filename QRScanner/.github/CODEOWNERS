@@ -1,0 +1,34 @@
+# CODEOWNERS - Code Review Assignments
+# This file defines who must review changes to different parts of the codebase
+
+# Global - fallback owner
+* @ajinkyaaher
+
+# GitHub Actions and CI/CD workflows
+/.github/workflows/ @ajinkyaaher
+/.github/ @ajinkaayer
+
+# App core logic
+/app/src/main/java/com/ajinkya/qrscanner/ @ajinkyaher
+
+# UI/Compose components
+/app/src/main/java/com/ajinkya/qrscanner/ui/ @ajinkyaaher
+
+# Resources and assets
+/app/src/main/res/ @ajinkyaaher
+
+# Tests
+/app/src/test/ @ajinkyaaher
+/app/src/androidTest/ @ajinkyaaher
+
+# Build configuration
+/app/build.gradle @ajinkyaaher
+/build.gradle @ajinkyaaher
+/gradle.properties @ajinkyaaher
+
+# Documentation
+/README.md @ajinkyaaher
+/.github/*.md @ajinkyaaher
+
+# Security sensitive
+/app/src/main/AndroidManifest.xml @ajinkyaaher

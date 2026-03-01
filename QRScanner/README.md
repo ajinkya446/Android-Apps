@@ -9,13 +9,44 @@ A modern Android QR code scanning and generation application built with **Jetpac
 
 ---
 
-## Features
+## 📱 App Screenshots
+
+<div align="center">
+
+### Main Screen
+<img src="screenshots/main_screen.png" width="250" alt="Main Screen">
+
+*Choose between Scan or Generate QR codes*
+
+### QR Scanning
+<img src="screenshots/scan_screen.png" width="250" alt="Scan Screen">
+
+*Real-time QR code detection with camera*
+
+### QR Generation
+<img src="screenshots/generate_screen.png" width="250" alt="Generate Screen">
+
+*Create custom QR codes with themes and styles*
+
+### Generated QR with Gradient
+<img src="screenshots/qr_gradient.png" width="250" alt="Gradient QR">
+
+*Beautiful gradient QR code with logo overlay*
+
+</div>
+
+> **Note:** Add your screenshots to a `screenshots/` folder in the repository root. Recommended size: 1080x1920 pixels.
+
+---
+
+## ✨ Features
 
 ### QR Code Scanning
 - **Real-time scanning** using ML Kit Barcode Scanning
 - **CameraX integration** for smooth camera preview
 - **Automatic barcode detection** with high accuracy
 - **Permission handling** with graceful degradation
+- **Instant result display** with copy/share options
 
 ### QR Code Generation
 - **6 Modern Color Themes**: Classic, Ocean, Sunset, Forest, Berry, Midnight
@@ -34,7 +65,252 @@ A modern Android QR code scanning and generation application built with **Jetpac
 
 ---
 
-## Tech Stack
+## 🚀 How the App Works
+
+### Architecture Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         USER                                  │
+└──────────────────────┬────────────────────────────────────────┘
+                       │
+       ┌───────────────┼───────────────┐
+       ▼               ▼               ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│   Scan QR    │ │  Generate QR │ │    Main      │
+│   Screen     │ │   Screen     │ │    Menu      │
+└──────┬───────┘ └──────┬───────┘ └──────────────┘
+       │                │
+       ▼                ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    PROCESSING LAYER                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │ ML Kit       │  │ ZXing        │  │ CameraX      │       │
+│  │ Barcode      │  │ QR Encoder   │  │ Preview      │       │
+│  │ Detection    │  │              │  │              │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
+└─────────────────────────────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      OUTPUT                                  │
+│         QR Content / Generated QR Bitmap                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Feature Workflows
+
+#### QR Scanning Workflow
+1. **User taps "Scan QR Code"** → Opens camera preview
+2. **CameraX initializes** → Starts camera feed with `PreviewView`
+3. **ML Kit BarcodeScanner analyzes** → Processes each frame for QR codes
+4. **QR Code detected** → Extracts content (URL, text, contact, etc.)
+5. **Result displayed** → Shows content with options to copy, share, or open
+
+#### QR Generation Workflow
+1. **User taps "Generate QR Code"** → Opens generation screen
+2. **Enter text/URL** → User types content to encode
+3. **Select styling options:**
+   - **Color Theme**: Classic, Ocean, Sunset, Forest, Berry, Midnight
+   - **Gradient Toggle**: Enable/disable gradient effect
+   - **Logo Toggle**: Show/hide center logo
+   - **Corner Style**: Square, Rounded, Smooth
+4. **Tap "Generate"** → ZXing creates QR bitmap with custom styling
+5. **Result displayed** → Shows QR with share/save options
+
+### Technical Implementation
+
+#### QR Generation Process
+```kotlin
+// 1. Configure QR encoding with high error correction
+val hints = hashMapOf<EncodeHintType, Any>()
+hints[EncodeHintType.ERROR_CORRECTION] = ErrorCorrectionLevel.H // 30% redundancy
+hints[EncodeHintType.MARGIN] = 2
+
+// 2. Generate bit matrix
+val writer = MultiFormatWriter()
+val bitMatrix = writer.encode(text, BarcodeFormat.QR_CODE, 768, 768, hints)
+
+// 3. Apply custom styling (colors, gradient, rounded corners)
+val bitmap = createStyledQR(bitMatrix, primaryColor, gradientColor, cornerRadius)
+
+// 4. Add logo overlay if enabled
+if (hasLogo) {
+    canvas.drawBitmap(logo, centerX, centerY, null)
+}
+```
+
+#### QR Scanning Process
+```kotlin
+// 1. Initialize CameraX with preview and analysis
+val preview = Preview.Builder().build()
+val imageAnalysis = ImageAnalysis.Builder()
+    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+    .build()
+
+// 2. Set up ML Kit barcode scanner
+val scanner = BarcodeScanning.getClient()
+
+// 3. Process camera frames
+imageAnalysis.setAnalyzer(executor) { imageProxy ->
+    scanner.process(imageProxy.image!!, imageProxy.imageInfo.rotationDegrees)
+        .addOnSuccessListener { barcodes ->
+            // Handle detected QR codes
+        }
+}
+```
+
+---
+
+## 🔒 Pre-Merging Checks (Quality Gates)
+
+> ⚠️ **IMPORTANT**: For checks to appear on PRs, the workflow file must be on the `main`/`master` branch first!  
+> See [.github/WORKFLOW_SETUP.md](.github/WORKFLOW_SETUP.md) for activation instructions.
+
+Every Pull Request **MUST PASS** all automated checks before merging.
+
+### Workflow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PULL REQUEST CREATED                              │
+└──────────────────────────┬──────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              GITHUB ACTIONS TRIGGERS AUTOMATICALLY                 │
+└──────────────────────────┬──────────────────────────────────────────┘
+                         │
+         ┌───────────────┼───────────────┬───────────────┐
+         ▼               ▼               ▼               ▼
+   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+   │ Detekt   │   │ KtLint   │   │ Android  │   │ Build &  │
+   │ Analysis │   │ Check    │   │ Lint     │   │ Test     │
+   │ (1 min)  │   │ (30s)    │   │ (2 min)  │   │ (3 min)  │
+   └────┬─────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘
+        │              │              │              │
+        └──────────────┴──────────────┴──────────────┘
+                         │
+                         ▼
+              ┌─────────────────────┐
+              │   QUALITY GATE      │
+              │   All checks pass?  │
+              └──────────┬──────────┘
+                         │
+            ┌────────────┴────────────┐
+            ▼                         ▼
+    ┌──────────────┐         ┌──────────────┐
+    │  ✅ PASS     │         │  ❌ FAIL     │
+    │  Merge       │         │  Blocked     │
+    │  Enabled     │         │  Fix issues  │
+    └──────────────┘         └──────────────┘
+```
+
+### Required Checks
+
+| Check | Purpose | What It Validates | Fail Condition |
+|-------|---------|-------------------|----------------|
+| **Detekt Analysis** | Kotlin code quality | Unused imports, unused parameters, unused private members, code complexity | Any unused code found → ❌ FAIL |
+| **KtLint Check** | Code formatting | Kotlin style guide compliance | Formatting issues → ❌ FAIL |
+| **Android Lint** | Android-specific issues | Unused resources, unused attributes, unused IDs, performance issues | Unused resources or errors → ❌ FAIL |
+| **Build Verification** | Compilation & tests | Code compiles, unit tests pass | Build fails or tests fail → ❌ FAIL |
+| **Kotlin Warnings** | Compiler checks | Unused import warnings | Warnings found → ❌ FAIL |
+
+### What Gets Checked
+
+#### ✅ Unused Import Detection
+```kotlin
+// ❌ This will FAIL the PR
+import androidx.compose.material.icons.Icons  // Never used
+import java.util.Date  // Never used
+
+// ✅ This will PASS
+import androidx.compose.material.icons.Icons  // Used below
+Icon(imageVector = Icons.Default.QrCode, ...)
+```
+
+#### ✅ Unused Resource Detection
+```xml
+<!-- ❌ This will FAIL the PR -->
+<color name="unused_color">#FF0000</color>  <!-- Not referenced anywhere -->
+<string name="unused_string">Hello</string>  <!-- Not used -->
+
+<!-- ✅ This will PASS -->
+<color name="primary">#0066CC</color>  <!-- Used in layouts/code -->
+```
+
+#### ✅ Unused Variable/Parameter Detection
+```kotlin
+// ❌ This will FAIL the PR
+fun processQR(text: String, unusedParam: Int) {  // unusedParam never used
+    val result = text
+    val unusedVar = "test"  // Never used
+}
+
+// ✅ This will PASS
+fun processQR(text: String, retryCount: Int) {  // All parameters used
+    val result = process(text, retryCount)  // All variables used
+}
+```
+
+### How to Fix Failed Checks
+
+#### If Detekt Fails (Unused Imports)
+```bash
+# Check what failed
+./gradlew detekt
+
+# Review the report
+open app/build/reports/detekt/detekt.html
+
+# Remove unused imports manually or use IDE optimize imports
+```
+
+#### If Android Lint Fails (Unused Resources)
+```bash
+# Check what failed
+./gradlew lintDebug
+
+# Review the report
+open app/build/reports/lint-results-debug.html
+
+# Remove unused resources from res/ folder
+```
+
+#### If KtLint Fails (Formatting)
+```bash
+# Auto-fix formatting issues
+./gradlew ktlintFormat
+
+# Verify fixes
+./gradlew ktlintCheck
+```
+
+### Branch Protection Rules
+
+The repository enforces these rules:
+
+1. **No Direct Push** to `main`, `master`, or `develop`
+2. **Pull Request Required** for all changes
+3. **All Checks Must Pass** before merging
+4. **Branch Must Be Up-to-Date** before merging (shows "Update branch" button)
+5. **Conversation Resolution** required
+
+### Setting Up Locally
+
+Before creating a PR, run checks locally:
+
+```bash
+# Run all quality checks
+./gradlew clean detekt ktlintCheck lintDebug assembleDebug testDebugUnitTest
+
+# Or use the combined check script
+./gradlew check
+```
+
+---
+
+## 📋 Tech Stack
 
 | Category | Technology |
 |----------|------------|
@@ -50,7 +326,7 @@ A modern Android QR code scanning and generation application built with **Jetpac
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 QRScanner/
@@ -66,27 +342,19 @@ QRScanner/
 │   │   │   ├── ScanQRActivity.kt        # QR scanning screen
 │   │   │   ├── GenerateQRActivity.kt    # QR generation screen
 │   │   │   └── ui/theme/                # Compose theme
-│   │   │       ├── Color.kt
-│   │   │       ├── Theme.kt
-│   │   │       └── Type.kt
 │   │   ├── res/                        # Resources
 │   │   └── AndroidManifest.xml
 │   ├── config/                         # Detekt config
-│   │   ├── detekt.yml
-│   │   └── detekt-baseline.xml
 │   ├── lint.xml                        # Android lint rules
 │   └── build.gradle                    # App-level build config
+├── screenshots/                        # App screenshots
 ├── build.gradle                        # Project-level build config
-├── gradle.properties                   # Gradle settings
-├── gradle/
-│   └── wrapper/
-│       └── gradle-wrapper.properties
 └── README.md                           # This file
 ```
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 - Android Studio Hedgehog (2023.1.1) or newer
@@ -113,52 +381,30 @@ QRScanner/
 
 ---
 
-## Usage
+## 💡 Usage Guide
 
 ### Scanning QR Codes
 1. Open the app
-2. Tap "Scan QR Code"
+2. Tap **"Scan QR Code"**
 3. Point camera at a QR code
 4. The app automatically detects and displays the content
+5. Tap the result to copy, share, or open URLs
 
 ### Generating QR Codes
 1. Open the app
-2. Tap "Generate QR Code"
+2. Tap **"Generate QR Code"**
 3. Enter text or URL
-4. Select color theme and style options
-5. Tap "Generate QR Code"
-6. Share or save the generated QR code
+4. Select styling options:
+   - **Color Theme**: Choose from 6 modern themes
+   - **Gradient**: Enable for stylish gradient effect
+   - **Logo**: Toggle center logo overlay
+   - **Corner Style**: Square, Rounded, or Smooth
+5. Tap **"Generate QR Code"**
+6. Share via social apps or save to gallery
 
 ---
 
-## Code Quality
-
-This project enforces strict code quality standards through automated checks:
-
-### Pre-commit Checks
-```bash
-# Run all checks locally before pushing
-./gradlew detekt ktlintCheck lintDebug
-
-# Auto-format Kotlin code
-./gradlew ktlintFormat
-```
-
-### GitHub Actions
-Every PR triggers:
-- **Detekt Analysis** - Kotlin static analysis
-- **KtLint Check** - Code formatting
-- **Android Lint** - Android-specific issues
-- **Unused Code Detection** - Dead code identification
-- **Build Verification** - Compilation and unit tests
-- **Security Scan** - Vulnerability detection
-
-### Required Status Checks
-All checks must pass before merging to `main`, `master`, or `develop`.
-
----
-
-## 16 KB Page Size Support
+## 🔐 16 KB Page Size Support
 
 This app is fully compatible with Android 15+ devices requiring 16 KB page sizes:
 - CameraX 1.4.1+ with 16 KB alignment
@@ -167,39 +413,7 @@ This app is fully compatible with Android 15+ devices requiring 16 KB page sizes
 
 ---
 
-## Dependencies
-
-### Core Android
-```kotlin
-implementation 'androidx.core:core-ktx:1.12.0'
-implementation 'androidx.appcompat:appcompat:1.6.1'
-implementation 'com.google.android.material:material:1.11.0'
-```
-
-### Jetpack Compose
-```kotlin
-implementation platform('androidx.compose:compose-bom:2024.02.00')
-implementation 'androidx.compose.ui:ui'
-implementation 'androidx.compose.material3:material3'
-implementation 'androidx.navigation:navigation-compose:2.7.7'
-```
-
-### Camera & Scanning
-```kotlin
-implementation 'androidx.camera:camera-camera2:1.4.1'
-implementation 'androidx.camera:camera-lifecycle:1.4.1'
-implementation 'androidx.camera:camera-view:1.4.1'
-implementation 'com.google.mlkit:barcode-scanning:17.3.0'
-```
-
-### QR Generation
-```kotlin
-implementation 'com.google.zxing:core:3.5.3'
-```
-
----
-
-## Contributing
+## 🤝 Contributing
 
 We welcome contributions! Please follow these steps:
 
@@ -209,22 +423,23 @@ We welcome contributions! Please follow these steps:
    git checkout -b feat/your-feature-name
    ```
 3. **Make your changes**
-4. **Run code quality checks**
+4. **Run code quality checks** (MUST PASS before PR)
    ```bash
    ./gradlew detekt ktlintCheck lintDebug
    ```
 5. **Commit with clear messages**
 6. **Push and create a PR to `develop`**
+7. **Wait for all checks to pass** (GitHub Actions will run automatically)
 
 ### Branch Strategy
-- `main`/`master` - Production-ready code
-- `develop` - Development branch
+- `main`/`master` - Production-ready code (protected)
+- `develop` - Development branch (protected)
 - `feat/*` or `feature/*` - Feature branches
-- PR required for all changes to protected branches
+- **PR required** for all changes to protected branches
 
 ---
 
-## License
+## 📄 License
 
 ```
 MIT License
@@ -252,7 +467,7 @@ SOFTWARE.
 
 ---
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
 - [Jetpack Compose](https://developer.android.com/jetpack/compose) - Modern Android UI toolkit
 - [CameraX](https://developer.android.com/training/camerax) - Camera library
@@ -261,11 +476,11 @@ SOFTWARE.
 
 ---
 
-## Contact & Support
+## 📞 Contact & Support
 
 - **GitHub Issues**: [Report bugs or request features](../../issues)
-- **Documentation**: See [CONFLUENCE.md](.github/CONFLUENCE.md) for detailed docs
-- **Project Wiki**: Check the GitHub wiki for additional guides
+- **Documentation**: See [.github/CONFLUENCE.md](.github/CONFLUENCE.md) for detailed docs
+- **Branch Protection**: See [.github/BRANCH_PROTECTION.md](.github/BRANCH_PROTECTION.md) for PR setup
 
 ---
 
