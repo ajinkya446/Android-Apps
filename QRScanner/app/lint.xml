@@ -11,7 +11,7 @@
     <issue id="UnusedAttribute" severity="error" />
 
     <!-- Unused IDs in layouts -->
-    <issue id="UnusedIds" severity="warning" />
+    <issue id="UnusedIds" severity="error" />
 
     <!-- ========== CODE QUALITY ========== -->
     <!-- Kotlin code style -->
