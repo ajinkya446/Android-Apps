@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TODO: Remove unused integers - added for testing code review checks -->
+    <integer name="unused_count_1">10</integer>
+    <integer name="unused_count_2">50</integer>
+    <integer name="unused_count_3">100</integer>
+    <integer name="unused_animation_duration">300</integer>
+    <integer name="unused_max_length">255</integer>
+    <integer name="unused_min_length">8</integer>
+</resources>
