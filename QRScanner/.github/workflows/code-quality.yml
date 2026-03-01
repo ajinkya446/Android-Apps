@@ -36,7 +36,6 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Run Detekt
-        working-directory: QRScanner
         run: ./gradlew detekt --continue
 
       - name: Upload Detekt Report
@@ -44,19 +43,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: detekt-report
-          path: QRScanner/app/build/reports/detekt/
+          path: app/build/reports/detekt/
 
       - name: Check Detekt Issues
-        working-directory: QRScanner
         run: |
           if [ -f "app/build/reports/detekt/detekt.xml" ]; then
             issues=$(grep -o 'error' app/build/reports/detekt/detekt.xml | wc -l || echo "0")
             if [ "$issues" -gt 0 ]; then
-              echo "❌ Found $issues Detekt errors"
+              echo "Found $issues Detekt errors"
               exit 1
             fi
           fi
-          echo "✅ No Detekt errors found"
+          echo "No Detekt errors found"
 
   # ==================== KTLINT (Kotlin Formatting) ====================
   ktlint:
@@ -83,13 +81,12 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Run KtLint Check
-        working-directory: QRScanner
         run: ./gradlew ktlintCheck --continue
 
       - name: Check KtLint Issues
         if: failure()
         run: |
-          echo "❌ KtLint formatting issues found. Run './gradlew ktlintFormat' locally to fix."
+          echo "KtLint formatting issues found. Run './gradlew ktlintFormat' locally to fix."
           exit 1
 
   # ==================== ANDROID LINT ====================
@@ -117,7 +114,6 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Run Android Lint
-        working-directory: QRScanner
         run: ./gradlew lintDebug --continue
 
       - name: Upload Lint Report
@@ -126,14 +122,12 @@ jobs:
         with:
           name: lint-report
           path: |
-            QRScanner/app/build/reports/lint-results-debug.html
-            QRScanner/app/build/reports/lint-results-debug.xml
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
 
       - name: Check Lint Errors
-        working-directory: QRScanner
         run: |
           if [ -f "app/build/reports/lint-results-debug.xml" ]; then
-            # Count fatal and error severity issues
             fatal_count=$(grep -o 'severity="Fatal"' app/build/reports/lint-results-debug.xml | wc -l || echo "0")
             error_count=$(grep -o 'severity="Error"' app/build/reports/lint-results-debug.xml | wc -l || echo "0")
             warning_count=$(grep -o 'severity="Warning"' app/build/reports/lint-results-debug.xml | wc -l || echo "0")
@@ -144,11 +138,11 @@ jobs:
             echo "  Warning: $warning_count"
             
             if [ "$fatal_count" -gt 0 ] || [ "$error_count" -gt 0 ]; then
-              echo "❌ Found $fatal_count fatal and $error_count error issues"
+              echo "Found $fatal_count fatal and $error_count error issues"
               exit 1
             fi
           fi
-          echo "✅ No fatal or error lint issues found"
+          echo "No fatal or error lint issues found"
 
   # ==================== UNUSED CODE DETECTION ====================
   unused-code:
@@ -174,63 +168,37 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Debug (for R8/ProGuard analysis)
-        working-directory: QRScanner
+      - name: Build Debug
         run: ./gradlew assembleDebug --continue
 
       - name: Check for Unused Resources
-        working-directory: QRScanner
         run: |
           ./gradlew lintDebug --continue 2>/dev/null || true
           
-          # Check lint output for unused resources
           if [ -f "app/build/reports/lint-results-debug.xml" ]; then
-            unused_resources=$(grep -E '(UnusedResources|UnusedAttribute)' app/build/reports/lint-results-debug.xml | wc -l || echo "0")
+            unused_resources=$(grep -E 'id="UnusedResources"|id="UnusedAttribute"' app/build/reports/lint-results-debug.xml | wc -l || echo "0")
             if [ "$unused_resources" -gt 0 ]; then
-              echo "❌ Found $unused_resources unused resources"
-              grep -E '(UnusedResources|UnusedAttribute)' app/build/reports/lint-results-debug.xml | head -20
+              echo "Found $unused_resources unused resources"
+              grep -E 'id="UnusedResources"|id="UnusedAttribute"' app/build/reports/lint-results-debug.xml | head -20
               exit 1
             fi
           fi
-          echo "✅ No unused resources found"
+          echo "No unused resources found"
 
-  # ==================== DEPENDENCY CHECKS ====================
-  dependency-check:
-    name: Dependency Analysis
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Run Dependency Analysis
-        working-directory: QRScanner
-        run: ./gradlew dependencies --configuration debugRuntimeClasspath > dependencies.txt
-
-      - name: Check for Unused Dependencies
-        working-directory: QRScanner
+      - name: Check for Unused Imports via Detekt
         run: |
-          # This is a basic check - for more advanced analysis consider using dependency-analysis-gradle-plugin
-          echo "📋 Runtime dependencies:"
-          grep "\\-" dependencies.txt | head -30 || true
-          echo "✅ Dependency check completed"
+          ./gradlew detekt --continue 2>/dev/null || true
+          if [ -f "app/build/reports/detekt/detekt.xml" ]; then
+            unused_imports=$(grep -c "UnusedImports" app/build/reports/detekt/detekt.xml || echo "0")
+            if [ "$unused_imports" -gt 0 ]; then
+              echo "Found $unused_imports unused imports"
+              grep "UnusedImports" app/build/reports/detekt/detekt.xml | head -10
+              exit 1
+            fi
+          fi
+          echo "No unused imports found"
 
-  # ==================== COMPILATION CHECK ====================
+  # ==================== BUILD & TESTS ====================
   build-check:
     name: Build Verification
     runs-on: ubuntu-latest
@@ -254,16 +222,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Clean Build
-        working-directory: QRScanner
         run: ./gradlew clean
 
       - name: Compile Debug
-        working-directory: QRScanner
         run: ./gradlew assembleDebug
 
       - name: Run Unit Tests
-        working-directory: QRScanner
         run: ./gradlew testDebugUnitTest --continue
 
       - name: Upload Test Reports
@@ -272,8 +240,8 @@ jobs:
         with:
           name: test-reports
           path: |
-            QRScanner/app/build/reports/tests/
-            QRScanner/app/build/test-results/
+            app/build/reports/tests/
+            app/build/test-results/
 
   # ==================== SECURITY SCAN ====================
   security-scan:
@@ -298,16 +266,16 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
-  # ==================== SUMMARY ====================
+  # ==================== QUALITY GATE ====================
   quality-summary:
     name: Quality Gate
     needs: [detekt, ktlint, android-lint, unused-code, build-check]
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Check All Jobs Status
+      - name: Generate Quality Gate Summary
         run: |
-          echo "## Code Quality Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "# Code Quality Check Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           detekt_status="${{ needs.detekt.result }}"
@@ -321,16 +289,16 @@ jobs:
           echo "| Detekt Analysis | $detekt_status |" >> $GITHUB_STEP_SUMMARY
           echo "| KtLint Format | $ktlint_status |" >> $GITHUB_STEP_SUMMARY
           echo "| Android Lint | $lint_status |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unused Code | $unused_status |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unused Code Check | $unused_status |" >> $GITHUB_STEP_SUMMARY
           echo "| Build & Tests | $build_status |" >> $GITHUB_STEP_SUMMARY
           
           if [[ "$detekt_status" == "failure" ]] || [[ "$ktlint_status" == "failure" ]] || \
              [[ "$lint_status" == "failure" ]] || [[ "$unused_status" == "failure" ]] || \
              [[ "$build_status" == "failure" ]]; then
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "❌ **Quality Gate Failed**" >> $GITHUB_STEP_SUMMARY
+            echo "Quality Gate Failed" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Quality Gate Passed**" >> $GITHUB_STEP_SUMMARY
+          echo "Quality Gate Passed" >> $GITHUB_STEP_SUMMARY
