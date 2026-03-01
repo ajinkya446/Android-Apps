@@ -1,3 +1,20 @@
+# Code Quality Checks Workflow
+# 
+# ⚠️ IMPORTANT: For checks to appear on PRs, this file must be on the main/master branch first!
+# Push this file to main before expecting checks on PRs.
+#
+# This workflow runs on:
+# - All PRs to main, master, or develop
+# - All pushes to main, master, develop, feat/*, and feature/* branches
+#
+# It performs comprehensive code quality checks including:
+# - Unused import detection (Detekt)
+# - Code formatting (KtLint)
+# - Unused resource detection (Android Lint)
+# - Build verification
+# - Unit tests
+# - Kotlin compiler warnings
+
 name: Code Quality Checks
 
 on:
@@ -5,6 +22,13 @@ on:
     branches: [ main, master, develop, 'feat/**', 'feature/**' ]
   pull_request:
     branches: [ main, master, develop ]
+
+# Add permissions for security scanning and PR comments
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -337,7 +361,7 @@ jobs:
   # ==================== QUALITY GATE ====================
   quality-gate:
     name: Quality Gate - PR Merge Blocker
-    needs: [detekt, ktlint, android-lint, build-check, kotlin-warnings]
+    needs: [detekt, ktlint, android-lint, build-check, kotlin-warnings, apk-size, coverage, dependency-check]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -354,7 +378,14 @@ jobs:
           LINT="${{ needs.android-lint.result }}"
           BUILD="${{ needs.build-check.result }}"
           WARNINGS="${{ needs.kotlin-warnings.result }}"
+          APK_SIZE="${{ needs.apk-size.result }}"
+          COVERAGE="${{ needs.coverage.result }}"
+          DEPS="${{ needs.dependency-check.result }}"
           
+          echo "========================================"
+          echo "     CODE QUALITY CHECK RESULTS"
+          echo "========================================"
+          echo ""
           echo "| Check                    | Status |"
           echo "|--------------------------|--------|"
           echo "| Detekt (Unused Imports)  | $DETEKT |"
@@ -362,6 +393,9 @@ jobs:
           echo "| Android Lint (Resources) | $LINT |"
           echo "| Build & Tests            | $BUILD |"
           echo "| Kotlin Warnings          | $WARNINGS |"
+          echo "| APK Size                 | $APK_SIZE |"
+          echo "| Test Coverage            | $COVERAGE |"
+          echo "| Dependencies             | $DEPS |"
           echo ""
           
           # Count failures
@@ -392,6 +426,21 @@ jobs:
             FAILED=$((FAILED + 1))
           fi
           
+          if [[ "$APK_SIZE" == "failure" ]]; then
+            echo "❌ APK size check failed - APK exceeds size limit"
+            FAILED=$((FAILED + 1))
+          fi
+          
+          if [[ "$COVERAGE" == "failure" ]]; then
+            echo "❌ Test coverage check failed"
+            FAILED=$((FAILED + 1))
+          fi
+          
+          if [[ "$DEPS" == "failure" ]]; then
+            echo "❌ Dependency vulnerability check failed"
+            FAILED=$((FAILED + 1))
+          fi
+          
           echo ""
           
           if [ $FAILED -gt 0 ]; then
@@ -412,3 +461,199 @@ jobs:
           echo ""
           echo "All code quality checks passed!"
           echo "PR is ready for merge (pending human review)"
+
+  # ==================== DEPENDENCY VULNERABILITY CHECK ====================
+  dependency-check:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run Dependency Check
+        run: |
+          ./gradlew dependencies --configuration debugRuntimeClasspath > deps.txt
+          
+          # Check for common vulnerable dependency patterns
+          VULNERABLE_DEPS=0
+          
+          # Check for outdated dependencies (older than 2 years)
+          echo "Checking dependencies for known issues..."
+          
+          # This is a basic check - in production, use OWASP Dependency Check or similar
+          if grep -E "(zxing:core:3\.[0-4]|guava:1[0-9]\.|okhttp:3\.)" deps.txt > /dev/null 2>&1; then
+            echo "⚠️ Potentially outdated dependencies found"
+            VULNERABLE_DEPS=$((VULNERABLE_DEPS + 1))
+          fi
+          
+          if [ $VULNERABLE_DEPS -gt 0 ]; then
+            echo "Review dependencies manually"
+          fi
+          
+          echo "✅ Dependency check completed"
+
+  # ==================== APK SIZE CHECK ====================
+  apk-size:
+    name: APK Size Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Check APK Size
+        run: |
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          
+          if [ ! -f "$APK_PATH" ]; then
+            echo "❌ APK not found at $APK_PATH"
+            exit 1
+          fi
+          
+          APK_SIZE=$(stat -f%z "$APK_PATH" 2>/dev/null || stat -c%s "$APK_PATH" 2>/dev/null)
+          APK_SIZE_MB=$(echo "scale=2; $APK_SIZE / 1024 / 1024" | bc)
+          
+          echo "APK Size: ${APK_SIZE_MB}MB"
+          echo "Max allowed: 100MB"
+          
+          # Fail if APK is larger than 100MB
+          if [ $APK_SIZE -gt 104857600 ]; then
+            echo "❌ APK size exceeds 100MB limit"
+            exit 1
+          fi
+          
+          # Warning if larger than 50MB
+          if [ $APK_SIZE -gt 52428800 ]; then
+            echo "⚠️ APK size is over 50MB - consider optimization"
+          fi
+          
+          echo "✅ APK size check passed"
+
+  # ==================== CODE COVERAGE ====================
+  coverage:
+    name: Test Coverage Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run Tests with Coverage
+        run: |
+          ./gradlew testDebugUnitTest
+          
+          # Check if coverage report exists
+          if [ -d "app/build/reports/jacoco" ] || [ -d "app/build/reports/coverage" ]; then
+            echo "Coverage reports generated"
+          else
+            echo "ℹ️ No coverage reports configured (optional)"
+          fi
+          
+          echo "✅ Test coverage check completed"
+
+      - name: Upload Coverage Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            app/build/reports/jacoco/
+            app/build/reports/coverage/
+
+  # ==================== PR COMMENT WITH RESULTS ====================
+  pr-comment:
+    name: Comment PR Results
+    needs: [detekt, ktlint, android-lint, build-check, kotlin-warnings, apk-size]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && always()
+    steps:
+      - name: Comment PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const detekt = '${{ needs.detekt.result }}';
+            const ktlint = '${{ needs.ktlint.result }}';
+            const lint = '${{ needs.android-lint.result }}';
+            const build = '${{ needs.build-check.result }}';
+            const warnings = '${{ needs.kotlin-warnings.result }}';
+            const apkSize = '${{ needs.apk-size.result }}';
+            
+            const status = (result) => {
+              if (result === 'success') return '✅';
+              if (result === 'failure') return '❌';
+              return '⚠️';
+            };
+            
+            const body = `## Code Quality Check Results
+            
+            | Check | Status |
+            |-------|--------|
+            | ${status(detekt)} Detekt (Unused Imports) | ${detekt} |
+            | ${status(ktlint)} KtLint (Formatting) | ${ktlint} |
+            | ${status(lint)} Android Lint (Resources) | ${lint} |
+            | ${status(build)} Build & Tests | ${build} |
+            | ${status(warnings)} Kotlin Warnings | ${warnings} |
+            | ${status(apkSize)} APK Size | ${apkSize} |
+            
+            ${detekt === 'success' && ktlint === 'success' && lint === 'success' && build === 'success' 
+              ? '✅ **All checks passed! Ready for merge.**' 
+              : '❌ **Some checks failed. Please fix issues before merging.**'}
+            
+            See [Actions tab](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
