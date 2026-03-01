@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TODO: Remove unused dimensions - added for testing code review checks -->
+    <dimen name="unused_dimen_small">8dp</dimen>
+    <dimen name="unused_dimen_medium">16dp</dimen>
+    <dimen name="unused_dimen_large">32dp</dimen>
+    <dimen name="unused_text_small">12sp</dimen>
+    <dimen name="unused_text_medium">16sp</dimen>
+    <dimen name="unused_text_large">24sp</dimen>
+    <dimen name="unused_padding">8dp</dimen>
+    <dimen name="unused_margin">16dp</dimen>
+    <dimen name="unused_elevation">4dp</dimen>
+    <dimen name="unused_corner_radius">8dp</dimen>
+</resources>

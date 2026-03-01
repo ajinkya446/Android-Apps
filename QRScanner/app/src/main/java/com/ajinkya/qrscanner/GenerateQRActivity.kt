@@ -58,6 +58,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+// TODO: Remove these unused imports - added for testing code review checks
+import java.util.Date
+import java.text.SimpleDateFormat
+import android.util.Log
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -623,9 +629,17 @@ private fun generateModernQRCode(
     gradientColor: Int,
     hasGradient: Boolean,
     hasLogo: Boolean,
-    cornerRadius: Float
+    cornerRadius: Float,
+    // TODO: Remove unused parameter - added for testing code review checks
+    unusedParameter: String = "test",
+    anotherUnusedParam: Int = 0
 ): Bitmap? {
     return try {
+        // TODO: Remove unused variables - added for testing code review checks
+        val unusedVariable = "This is never used"
+        val anotherUnusedVariable = 12345
+        val unusedDate = Date()
+        
         val size = 768
         val hints = hashMapOf<EncodeHintType, Any>()
         hints[EncodeHintType.ERROR_CORRECTION] = ErrorCorrectionLevel.H
