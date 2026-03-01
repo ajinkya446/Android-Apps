@@ -3,11 +3,4 @@
     <color name="colorPrimary">#008577</color>
     <color name="colorPrimaryDark">#00574B</color>
     <color name="colorAccent">#D81B60</color>
-    
-    <!-- TODO: Remove unused colors - added for testing code review checks -->
-    <color name="unusedColor1">#FF0000</color>
-    <color name="unusedColor2">#00FF00</color>
-    <color name="unusedColor3">#0000FF</color>
-    <color name="unusedColor4">#FFFF00</color>
-    <color name="unusedColor5">#FF00FF</color>
 </resources>
