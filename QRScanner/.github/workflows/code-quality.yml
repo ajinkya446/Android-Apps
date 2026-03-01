@@ -1,0 +1,414 @@
+name: Code Quality Checks
+
+on:
+  push:
+    branches: [ main, master, develop, 'feat/**', 'feature/**' ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================== DETEKT - FAIL ON UNUSED IMPORTS ====================
+  detekt:
+    name: Detekt Analysis - Unused Imports Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run Detekt - STRICT MODE
+        run: |
+          ./gradlew detekt
+          DETEKT_EXIT_CODE=$?
+          
+          if [ $DETEKT_EXIT_CODE -ne 0 ]; then
+            echo "❌ DETEKT FAILED - Code quality issues found"
+            exit 1
+          fi
+          echo "✅ Detekt passed - No issues found"
+
+      - name: Check for Unused Imports (Explicit Check)
+        if: always()
+        run: |
+          if [ -f "app/build/reports/detekt/detekt.xml" ]; then
+            echo "Checking for unused imports in Detekt report..."
+            
+            # Check for UnusedImports rule violations
+            UNUSED_IMPORTS=$(grep -c 'UnusedImports' app/build/reports/detekt/detekt.xml 2>/dev/null || echo "0")
+            
+            if [ "$UNUSED_IMPORTS" -gt 0 ]; then
+              echo ""
+              echo "❌❌❌ FOUND $UNUSED_IMPORTS UNUSED IMPORTS ❌❌❌"
+              echo ""
+              echo "Details:"
+              grep 'UnusedImports' app/build/reports/detekt/detekt.xml | head -20
+              echo ""
+              echo "Run './gradlew detekt' locally to see full details"
+              exit 1
+            fi
+            
+            # Check for UnusedParameter violations
+            UNUSED_PARAMS=$(grep -c 'UnusedParameter' app/build/reports/detekt/detekt.xml 2>/dev/null || echo "0")
+            if [ "$UNUSED_PARAMS" -gt 0 ]; then
+              echo "❌ FOUND $UNUSED_PARAMS UNUSED PARAMETERS"
+              grep 'UnusedParameter' app/build/reports/detekt/detekt.xml | head -10
+              exit 1
+            fi
+            
+            # Check for UnusedPrivateMember violations  
+            UNUSED_PRIVATE=$(grep -c 'UnusedPrivateMember' app/build/reports/detekt/detekt.xml 2>/dev/null || echo "0")
+            if [ "$UNUSED_PRIVATE" -gt 0 ]; then
+              echo "❌ FOUND $UNUSED_PRIVATE UNUSED PRIVATE MEMBERS"
+              grep 'UnusedPrivateMember' app/build/reports/detekt/detekt.xml | head -10
+              exit 1
+            fi
+          fi
+          
+          echo "✅ No unused imports, parameters, or private members found"
+
+      - name: Upload Detekt Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: detekt-report
+          path: app/build/reports/detekt/
+
+  # ==================== KTLINT - FORMATTING CHECK ====================
+  ktlint:
+    name: KtLint Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run KtLint Check - STRICT MODE
+        run: |
+          ./gradlew ktlintCheck
+          KTLINT_EXIT_CODE=$?
+          
+          if [ $KTLINT_EXIT_CODE -ne 0 ]; then
+            echo ""
+            echo "❌❌❌ KTLINT FAILED - Formatting issues found ❌❌❌"
+            echo ""
+            echo "Run './gradlew ktlintFormat' locally to auto-fix these issues"
+            echo "Or check the output above for details"
+            exit 1
+          fi
+          echo "✅ KtLint passed - Code is properly formatted"
+
+  # ==================== ANDROID LINT - UNUSED RESOURCES ====================
+  android-lint:
+    name: Android Lint - Unused Resources
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run Android Lint - STRICT MODE
+        run: |
+          ./gradlew lintDebug
+          LINT_EXIT_CODE=$?
+          
+          if [ $LINT_EXIT_CODE -ne 0 ]; then
+            echo "❌ Android Lint found issues"
+          fi
+
+      - name: Check for Unused Resources - FAIL ON FINDINGS
+        run: |
+          if [ ! -f "app/build/reports/lint-results-debug.xml" ]; then
+            echo "❌ Lint report not found - build may have failed"
+            exit 1
+          fi
+          
+          echo "Checking for unused resources..."
+          
+          # Check UnusedResources
+          UNUSED_RESOURCES=$(grep -o 'id="UnusedResources"' app/build/reports/lint-results-debug.xml | wc -l 2>/dev/null || echo "0")
+          
+          # Check UnusedAttribute  
+          UNUSED_ATTRS=$(grep -o 'id="UnusedAttribute"' app/build/reports/lint-results-debug.xml | wc -l 2>/dev/null || echo "0")
+          
+          # Check for any unused declarations
+          UNUSED_IDS=$(grep -o 'id="UnusedIds"' app/build/reports/lint-results-debug.xml | wc -l 2>/dev/null || echo "0")
+          
+          TOTAL_UNUSED=$((UNUSED_RESOURCES + UNUSED_ATTRS + UNUSED_IDS))
+          
+          if [ "$TOTAL_UNUSED" -gt 0 ]; then
+            echo ""
+            echo "❌❌❌ FOUND $TOTAL_UNUSED UNUSED CODE/RESOURCE ISSUES ❌❌❌"
+            echo ""
+            echo "Breakdown:"
+            echo "  - Unused Resources: $UNUSED_RESOURCES"
+            echo "  - Unused Attributes: $UNUSED_ATTRS"  
+            echo "  - Unused IDs: $UNUSED_IDS"
+            echo ""
+            echo "Details:"
+            
+            # Show unused resources with file paths
+            grep -B2 'id="UnusedResources"' app/build/reports/lint-results-debug.xml | head -40
+            echo ""
+            
+            echo "Run './gradlew lintDebug' locally for full details"
+            echo ""
+            exit 1
+          fi
+          
+          echo "✅ No unused resources found"
+
+      - name: Check for Fatal/Error Severity Issues
+        run: |
+          FATAL_COUNT=$(grep -o 'severity="Fatal"' app/build/reports/lint-results-debug.xml 2>/dev/null | wc -l || echo "0")
+          ERROR_COUNT=$(grep -o 'severity="Error"' app/build/reports/lint-results-debug.xml 2>/dev/null | wc -l || echo "0")
+          
+          echo "Lint Summary:"
+          echo "  Fatal: $FATAL_COUNT"
+          echo "  Error: $ERROR_COUNT"
+          
+          if [ "$FATAL_COUNT" -gt 0 ] || [ "$ERROR_COUNT" -gt 0 ]; then
+            echo ""
+            echo "❌❌❌ LINT ERRORS FOUND - PR CANNOT BE MERGED ❌❌❌"
+            echo ""
+            exit 1
+          fi
+          
+          echo "✅ No fatal or error lint issues found"
+
+      - name: Upload Lint Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: |
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
+
+  # ==================== BUILD VERIFICATION ====================
+  build-check:
+    name: Build & Test Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Clean Build
+        run: ./gradlew clean
+
+      - name: Compile Debug - MUST PASS
+        run: |
+          ./gradlew assembleDebug
+          if [ $? -ne 0 ]; then
+            echo "❌ BUILD FAILED - Cannot compile project"
+            exit 1
+          fi
+          echo "✅ Build successful"
+
+      - name: Run Unit Tests
+        run: |
+          ./gradlew testDebugUnitTest
+          TEST_EXIT_CODE=$?
+          
+          if [ $TEST_EXIT_CODE -ne 0 ]; then
+            echo "❌ UNIT TESTS FAILED"
+            exit 1
+          fi
+          echo "✅ All tests passed"
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+
+  # ==================== KOTLIN COMPILATION WARNINGS ====================
+  kotlin-warnings:
+    name: Kotlin Warnings Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Check Kotlin Warnings as Errors
+        run: |
+          # Build with warnings as errors
+          ./gradlew compileDebugKotlin 2>&1 | tee build.log
+          
+          # Check for unused import warnings in Kotlin compiler output
+          UNUSED_IMPORT_WARNINGS=$(grep -c "Unused import" build.log 2>/dev/null || echo "0")
+          
+          if [ "$UNUSED_IMPORT_WARNINGS" -gt 0 ]; then
+            echo ""
+            echo "❌❌❌ FOUND $UNUSED_IMPORT_WARNINGS UNUSED IMPORT WARNINGS ❌❌❌"
+            echo ""
+            grep "Unused import" build.log | head -20
+            exit 1
+          fi
+          
+          echo "✅ No unused import warnings"
+
+  # ==================== QUALITY GATE ====================
+  quality-gate:
+    name: Quality Gate - PR Merge Blocker
+    needs: [detekt, ktlint, android-lint, build-check, kotlin-warnings]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Evaluate All Checks
+        run: |
+          echo "========================================"
+          echo "     CODE QUALITY GATE RESULTS"
+          echo "========================================"
+          echo ""
+          
+          # Get all job results
+          DETEKT="${{ needs.detekt.result }}"
+          KTLINT="${{ needs.ktlint.result }}"
+          LINT="${{ needs.android-lint.result }}"
+          BUILD="${{ needs.build-check.result }}"
+          WARNINGS="${{ needs.kotlin-warnings.result }}"
+          
+          echo "| Check                    | Status |"
+          echo "|--------------------------|--------|"
+          echo "| Detekt (Unused Imports)  | $DETEKT |"
+          echo "| KtLint (Formatting)      | $KTLINT |"
+          echo "| Android Lint (Resources) | $LINT |"
+          echo "| Build & Tests            | $BUILD |"
+          echo "| Kotlin Warnings          | $WARNINGS |"
+          echo ""
+          
+          # Count failures
+          FAILED=0
+          
+          if [[ "$DETEKT" == "failure" ]]; then 
+            echo "❌ Detekt failed - Unused imports or code quality issues"
+            FAILED=$((FAILED + 1))
+          fi
+          
+          if [[ "$KTLINT" == "failure" ]]; then
+            echo "❌ KtLint failed - Formatting issues"
+            FAILED=$((FAILED + 1))
+          fi
+          
+          if [[ "$LINT" == "failure" ]]; then
+            echo "❌ Android Lint failed - Unused resources or lint errors"
+            FAILED=$((FAILED + 1))
+          fi
+          
+          if [[ "$BUILD" == "failure" ]]; then
+            echo "❌ Build failed - Compilation or test errors"
+            FAILED=$((FAILED + 1))
+          fi
+          
+          if [[ "$WARNINGS" == "failure" ]]; then
+            echo "❌ Kotlin warnings check failed"
+            FAILED=$((FAILED + 1))
+          fi
+          
+          echo ""
+          
+          if [ $FAILED -gt 0 ]; then
+            echo "========================================"
+            echo "❌❌❌ QUALITY GATE FAILED ❌❌❌"
+            echo "========================================"
+            echo ""
+            echo "$FAILED check(s) failed"
+            echo "PR CANNOT BE MERGED until all checks pass"
+            echo ""
+            echo "Fix the issues above and push new commits"
+            exit 1
+          fi
+          
+          echo "========================================"
+          echo "✅✅✅ QUALITY GATE PASSED ✅✅✅"
+          echo "========================================"
+          echo ""
+          echo "All code quality checks passed!"
+          echo "PR is ready for merge (pending human review)"
