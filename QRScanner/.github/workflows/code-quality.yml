@@ -1,0 +1,304 @@
+name: Code Quality Checks
+
+on:
+  push:
+    branches: [ main, master, develop, 'feat/**', 'feature/**' ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================== DETEKT (Kotlin Static Analysis) ====================
+  detekt:
+    name: Detekt Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run Detekt
+        run: ./gradlew detekt --continue
+
+      - name: Upload Detekt Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: detekt-report
+          path: app/build/reports/detekt/
+
+      - name: Check Detekt Issues
+        run: |
+          if [ -f "app/build/reports/detekt/detekt.xml" ]; then
+            issues=$(grep -o 'error' app/build/reports/detekt/detekt.xml | wc -l || echo "0")
+            if [ "$issues" -gt 0 ]; then
+              echo "Found $issues Detekt errors"
+              exit 1
+            fi
+          fi
+          echo "No Detekt errors found"
+
+  # ==================== KTLINT (Kotlin Formatting) ====================
+  ktlint:
+    name: KtLint Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run KtLint Check
+        run: ./gradlew ktlintCheck --continue
+
+      - name: Check KtLint Issues
+        if: failure()
+        run: |
+          echo "KtLint formatting issues found. Run './gradlew ktlintFormat' locally to fix."
+          exit 1
+
+  # ==================== ANDROID LINT ====================
+  android-lint:
+    name: Android Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run Android Lint
+        run: ./gradlew lintDebug --continue
+
+      - name: Upload Lint Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: |
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
+
+      - name: Check Lint Errors
+        run: |
+          if [ -f "app/build/reports/lint-results-debug.xml" ]; then
+            fatal_count=$(grep -o 'severity="Fatal"' app/build/reports/lint-results-debug.xml | wc -l || echo "0")
+            error_count=$(grep -o 'severity="Error"' app/build/reports/lint-results-debug.xml | wc -l || echo "0")
+            warning_count=$(grep -o 'severity="Warning"' app/build/reports/lint-results-debug.xml | wc -l || echo "0")
+            
+            echo "Lint Results:"
+            echo "  Fatal: $fatal_count"
+            echo "  Error: $error_count"
+            echo "  Warning: $warning_count"
+            
+            if [ "$fatal_count" -gt 0 ] || [ "$error_count" -gt 0 ]; then
+              echo "Found $fatal_count fatal and $error_count error issues"
+              exit 1
+            fi
+          fi
+          echo "No fatal or error lint issues found"
+
+  # ==================== UNUSED CODE DETECTION ====================
+  unused-code:
+    name: Unused Code Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build Debug
+        run: ./gradlew assembleDebug --continue
+
+      - name: Check for Unused Resources
+        run: |
+          ./gradlew lintDebug --continue 2>/dev/null || true
+          
+          if [ -f "app/build/reports/lint-results-debug.xml" ]; then
+            unused_resources=$(grep -E 'id="UnusedResources"|id="UnusedAttribute"' app/build/reports/lint-results-debug.xml | wc -l || echo "0")
+            if [ "$unused_resources" -gt 0 ]; then
+              echo "Found $unused_resources unused resources"
+              grep -E 'id="UnusedResources"|id="UnusedAttribute"' app/build/reports/lint-results-debug.xml | head -20
+              exit 1
+            fi
+          fi
+          echo "No unused resources found"
+
+      - name: Check for Unused Imports via Detekt
+        run: |
+          ./gradlew detekt --continue 2>/dev/null || true
+          if [ -f "app/build/reports/detekt/detekt.xml" ]; then
+            unused_imports=$(grep -c "UnusedImports" app/build/reports/detekt/detekt.xml || echo "0")
+            if [ "$unused_imports" -gt 0 ]; then
+              echo "Found $unused_imports unused imports"
+              grep "UnusedImports" app/build/reports/detekt/detekt.xml | head -10
+              exit 1
+            fi
+          fi
+          echo "No unused imports found"
+
+  # ==================== BUILD & TESTS ====================
+  build-check:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Clean Build
+        run: ./gradlew clean
+
+      - name: Compile Debug
+        run: ./gradlew assembleDebug
+
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest --continue
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+
+  # ==================== SECURITY SCAN ====================
+  security-scan:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ==================== QUALITY GATE ====================
+  quality-summary:
+    name: Quality Gate
+    needs: [detekt, ktlint, android-lint, unused-code, build-check]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate Quality Gate Summary
+        run: |
+          echo "# Code Quality Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          detekt_status="${{ needs.detekt.result }}"
+          ktlint_status="${{ needs.ktlint.result }}"
+          lint_status="${{ needs.android-lint.result }}"
+          unused_status="${{ needs.unused-code.result }}"
+          build_status="${{ needs.build-check.result }}"
+          
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Detekt Analysis | $detekt_status |" >> $GITHUB_STEP_SUMMARY
+          echo "| KtLint Format | $ktlint_status |" >> $GITHUB_STEP_SUMMARY
+          echo "| Android Lint | $lint_status |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unused Code Check | $unused_status |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build & Tests | $build_status |" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "$detekt_status" == "failure" ]] || [[ "$ktlint_status" == "failure" ]] || \
+             [[ "$lint_status" == "failure" ]] || [[ "$unused_status" == "failure" ]] || \
+             [[ "$build_status" == "failure" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Quality Gate Failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Quality Gate Passed" >> $GITHUB_STEP_SUMMARY
